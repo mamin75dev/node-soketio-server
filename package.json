@@ -1,0 +1,74 @@
+{
+  "name": "socket",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "build": "npm-run-all clean transpile",
+    "start": "nodemon --exec babel-node --legacy-watch src/bin/www.js",
+    "server": "babel-node src/bin/www.js",
+    "server:prod": "node ./dist/bin/www",
+    "dev": "NODE_ENV=development npm-run-all server",
+    "prod": "NODE_ENV=production npm-run-all clean build server:prod",
+    "transpile": "babel ./server --out-dir dist-server",
+    "clean": "rimraf dist-server",
+    "watch:dev": "nodemon"
+  },
+  "dependencies": {
+    "bluebird": "^3.7.2",
+    "cookie": "^0.4.1",
+    "cookie-parser": "~1.4.4",
+    "cors": "^2.8.5",
+    "dotenv": "^8.2.0",
+    "express": "~4.16.1",
+    "express-session": "^1.17.1",
+    "helmet": "^4.3.1",
+    "ioredis": "^4.19.4",
+    "js-cookie": "^2.2.1",
+    "jsonwebtoken": "^8.5.1",
+    "moment": "^2.29.1",
+    "mongoose": "^5.11.11",
+    "pg": "^8.5.1",
+    "pg-hstore": "^2.3.3",
+    "redis": "^3.0.2",
+    "sequelize": "^6.3.5",
+    "socket.io": "^3.0.5",
+    "socket.io-redis": "^6.0.1",
+    "url": "^0.11.0",
+    "util": "^0.12.3"
+  },
+  "devDependencies": {
+    "@babel/cli": "^7.12.10",
+    "@babel/core": "^7.12.10",
+    "@babel/eslint-parser": "^7.12.1",
+    "@babel/node": "^7.12.10",
+    "@babel/plugin-proposal-optional-chaining": "^7.12.7",
+    "@babel/preset-env": "^7.12.11",
+    "babel-eslint": "^10.1.0",
+    "debug": "^4.3.1",
+    "eslint": "7.5",
+    "esm": "^3.2.25",
+    "mocha": "^8.2.1",
+    "morgan": "^1.10.0",
+    "nodemon": "^2.0.7",
+    "npm-run-all": "^4.1.5",
+    "rimraf": "^3.0.2"
+  },
+  "babel": {
+    "presets": [
+      "@babel/preset-env"
+    ]
+  },
+  "nodemonConfig": {
+    "exec": "npm run dev",
+    "watch": [
+      "server/*",
+      "public/*"
+    ],
+    "ignore": [
+      "**/__tests__/**",
+      "*.test.js",
+      "*.spec.js"
+    ]
+  },
+  "type": "module"
+}

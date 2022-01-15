@@ -1,0 +1,210 @@
+#!/usr/bin/env node
+import {onError,normalizePort} from '../utils/errorHandling';
+/**
+ * Module dependencies.
+ */
+require('dotenv').config()
+var app = require('../app');
+var debug = require('debug')('socket:server');
+var http = require('http');
+var redisAdapter = require('socket.io-redis');
+var moment = require('moment');
+
+/**
+ * Get port from environment and store in Express.
+ */
+
+var port = normalizePort(process.env.PORT || '3000');
+var redisServer = process.env.REDIS_SERVER||'localhost';
+var redisPort = process.env.REDIS_PORT || 6379
+app.set('port', port);
+
+/**
+ * Create HTTP server.
+ */
+
+var server = http.createServer(app);
+
+/**
+ * Listen on provided port, on all network interfaces.
+ */
+server.listen(port);
+server.on('error', onError);
+server.on('listening', onListening);
+
+
+// var io = require('socket.io')(server,{
+//   path:'/socket.io',
+//   cors: {
+//     origin: "*",
+//   }});
+var io = require('socket.io')(server);
+io.adapter(redisAdapter({ host: redisServer, port: redisPort }));
+const nameSpace = '/';
+var connectedUsers = {};
+var rooms = {}
+let numUsers = 0;
+io.on('connection', function(socket) {
+  connectedUsers[socket.id]=socket
+
+  socket.on('disconnect', function() {
+    var userData = connectedUsers[socket.id];
+    if (typeof userData !== 'undefined') {
+      socket.leave(connectedUsers[socket.id]);
+      io.to(userData.room).emit('message', {
+        username: 'System',
+        text: userData.username + ' has left!',
+        timestamp: moment().valueOf()
+      });
+      delete connectedUsers[socket.id];
+    }
+  });
+
+  socket.on('joinRoom', async function(req,callback) {
+    console.log('joinRoom::::: req',req,rooms)
+    var {roomId,userId} = req
+    if(!roomId || !userId){
+      return;
+    }
+    if (roomId.replace(/\s/g, "").length > 0 && userId.replace(/\s/g, "").length > 0) {
+      var nameTaken = false;
+
+      // Object.keys(connectedUsers).forEach(function(socketId) {
+      //   var userInfo = connectedUsers[socketId];
+      //   if (userInfo.username === userId) {
+      //     nameTaken = true;
+      //   }
+      // });
+
+      // if (nameTaken) {
+      //   callback({
+      //     nameAvailable: false,
+      //     error: 'Sorry this username is taken!'
+      //   });
+      // } else {
+        if(!rooms[roomId.toString()]){
+          rooms[roomId.toString()]={}
+          // rooms[roomId.toString()] = Object.assign({},rooms[roomId.toString()],{})
+          if(!rooms[roomId.toString()].hasOwnProperty(userId.toString())){
+           rooms[roomId][socket.id]=socket.id
+          }
+        }else {
+          if(!rooms[roomId.toString()].hasOwnProperty(userId.toString())){
+            rooms[roomId][socket.id]=socket.id
+          }
+        }
+        function join(roomId){
+          socket.join(roomId);
+          socket.broadcast.to(roomId).emit(
+            'user_join', {
+              message: userId + '  :::: has joined!',
+              timestamp: moment().valueOf(),
+              roomid:roomId
+            });
+        }
+        join(roomId)
+        console.log('rooms:::',rooms,roomId)
+        // connectedUsers[socket.id] = req;
+        // socket.join(req.room);
+        // socket.broadcast.to(req.roomId).emit(
+        //    'message', {
+        //   username: 'System',
+        //   text: req.username + ' has joined!',
+        //   timestamp: moment().valueOf()
+        // });
+        // callback({
+        //   nameAvailable: true
+        // });
+      // }
+    } else {
+      callback({
+        nameAvailable: false,
+        error: 'Hey, please fill out the form!'
+      });
+    }
+  });
+
+  socket.on('message', function(message) {
+    console.log('message::::::',message)
+    if(connectedUsers[message.userId]) {
+      message.timestamp = moment().valueOf();
+      io.to(message.roomId).emit('message', message);
+    }
+    // console.log(connectedUsers,socket.id,message)
+  });
+
+  // socket.emit('message', {
+  //   username: 'System',
+  //   text: 'Hey there! Ask someone to join this chat room to start talking.',
+  //   timestamp: moment().valueOf()
+  // });
+
+  socket.on('typing', function(name) {
+    socket.broadcast.emit('typing', name);
+  });
+  socket.on('stoppedTyping', function(name) {
+    socket.broadcast.emit('stoppedTyping', name);
+  });
+  socket.on('removeTyping', function(name) {
+    socket.broadcast.emit('removeTyping', name);
+  });
+
+  socket.on('allSockets', async function(cb) {
+    let sockets= []
+    try {
+        sockets = await io.of(nameSpace).adapter.sockets();
+    }catch (e) {
+    }finally {
+      if(cb){
+        cb(sockets)
+      }
+    }
+  });
+  socket.on('allSocketsInRoom', async function(roomId,cb) {
+    let sockets= []
+    try {
+      if(!roomId){
+        new Error('roomId')
+      }
+      sockets = await io.of(nameSpace).adapter.sockets(roomId);
+    }catch (e) {
+    }finally {
+      if(cb){
+        cb(sockets)
+      }
+    }
+  });
+  socket.on('allRooms', async function(cb) {
+    let rooms= []
+    try {
+      rooms = await io.of(nameSpace).adapter.allRooms();
+    }catch (e) {
+    }finally {
+      if(cb){
+        cb(rooms)
+      }
+    }
+  });
+
+});
+io.of(nameSpace).adapter.on('error', function(e){
+  console.log('log:::error',e)
+});
+
+
+
+
+
+
+
+/**
+ * Event listener for HTTP server "listening" event.
+ */
+
+function onListening() {
+  var addr = server.address();
+  var bind = typeof addr === 'string'
+    ? 'pipe ' + addr
+    : 'port ' + addr.port;
+  debug('Listening on ' + bind);
+}
